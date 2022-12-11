@@ -34,6 +34,9 @@ class ModelArguments:
         default="binary", metadata={"help": ""}
     )
 
+    in_batch_negative_loss: bool = field(
+        default=True, metadata={"help": ""}
+    )
 
 @dataclass
 class DataArguments:
@@ -75,10 +78,6 @@ class DataArguments:
 
     stride: int = field(
         default=1, metadata={"help": ""}
-    )
-
-    in_batch_negative_loss: bool = field(
-        default=True, metadata={"help": ""}
     )
 
 
