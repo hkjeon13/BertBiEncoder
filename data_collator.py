@@ -51,7 +51,7 @@ class DataCollatorForResponseSelection:
             response_features.append(response_feature)
             others.append(other)
 
-        others["label"] = [1. for _ in range(len(dialogue_features))]
+        others = [{"label" : 1. } for _ in range(len(dialogue_features))]
 
         dialogue_batch = self.tokenizer.pad(
             dialogue_features,
