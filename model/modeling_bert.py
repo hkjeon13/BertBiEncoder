@@ -115,7 +115,7 @@ class BiEncoderBertForResponseSelection(BertPreTrainedModel):
         response_logits = self.response_projection(response_pooled_output)
 
         if self.config.in_batch_negative_loss:
-            labels = torch.eye(dialogue_logits.shape[0])*labels
+            labels = torch.eye(dialogue_logits.shape[0], device=self.device)*labels
             numerator = torch.matmul(dialogue_logits, response_logits.t())
             denominator = (torch.sum(dialogue_logits**2)**0.5)*(torch.sum(response_logits**2)**0.5)
             similarity = numerator / denominator
