@@ -27,10 +27,17 @@ class ResponseSelectionOutput(ModelOutput):
 
 
 class BiEncoderBertForResponseSelection(BertPreTrainedModel):
-    def __init__(self, config, projection_size: int = 128, label_type: str = "binary"):
+    def __init__(
+            self,
+            config,
+            projection_size: int = 128,
+            label_type: str = "binary",
+            in_batch_negative_loss: bool = True
+    ) -> None:
         super().__init__(config)
         self.config = config
-        self.label_type = label_type
+        self.config.label_type = label_type
+        self.config.in_batch_negative_loss = in_batch_negative_loss
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
@@ -107,18 +114,22 @@ class BiEncoderBertForResponseSelection(BertPreTrainedModel):
         response_pooled_output = self.response_dropout(response_pooled_output)
         response_logits = self.response_projection(response_pooled_output)
 
-        cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
-
-        similarity = cosine_similarity(dialogue_logits, response_logits)
+        if self.config.in_batch_negative_loss:
+            labels = torch.eye(dialogue_logits.shape[0])*labels
+            numerator = dialogue_logits*response_logits.t()
+            denominator = (torch.sum(dialogue_logits**2)**0.5)*(torch.sum(response_logits**2)**0.5)
+            similarity = numerator / denominator
+        else:
+            cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
+            similarity = cosine_similarity(dialogue_logits, response_logits)
 
         loss = None
         if labels is not None:
-            if self.label_type == "binary":
+            if self.config.label_type == "binary":
                 m = ReLU()
                 loss_fct = BCELoss()
-                preds = m(similarity)
-                loss = loss_fct(preds, labels)
-            elif self.label_type == "polarity":
+                loss = loss_fct(m(similarity), labels)
+            elif self.config.label_type == "polarity":
                 loss_fct = CosineEmbeddingLoss()
                 loss = loss_fct(dialogue_logits, response_logits, labels)
             else:

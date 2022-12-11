@@ -77,8 +77,8 @@ class DataArguments:
         default=1, metadata={"help": ""}
     )
 
-    negative_sampling: str = field(
-        default="in_batch", metadata={"help": ""}
+    in_batch_negative_loss: bool = field(
+        default=True, metadata={"help": ""}
     )
 
 
@@ -127,7 +127,8 @@ def main():
         model = BiEncoderBertForResponseSelection(
             config,
             projection_size=model_args.projection_dimension,
-            label_type=model_args.label_type
+            label_type=model_args.label_type,
+            in_batch_negative_loss=model_args.in_batch_negative_loss
         )
         model.dialogue_bert = model.dialogue_bert.from_pretrained(model_args.model_name_or_path)
         model.response_bert = model.response_bert.from_pretrained(model_args.model_name_or_path)

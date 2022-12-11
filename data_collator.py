@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
 from typing import Union, Optional, List, Dict, Any
+from itertools import product
 import torch
 
 @dataclass
@@ -50,6 +51,7 @@ class DataCollatorForResponseSelection:
             response_features.append(response_feature)
             others.append(other)
 
+        others["label"] = [1. for _ in range(len(dialogue_features))]
 
         dialogue_batch = self.tokenizer.pad(
             dialogue_features,
@@ -81,10 +83,6 @@ class DataCollatorForResponseSelection:
             **{f"response_{k}": v for k, v in response_batch.items()},
             **{k: v for k, v in other.items()}
         )
-
-        batch["label"] = [1. for _ in range(len(dialogue_features))]
-        if self.return_tensors == "pt":
-            batch['label'] = torch.tensor(batch['label'])
 
         if "label" in batch:
             batch["labels"] = batch["label"]
