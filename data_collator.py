@@ -77,7 +77,7 @@ class DataCollatorForResponseSelection:
         batch = dict(
             {f"dialogue_{k}": v for k, v in dialogue_batch.items()},
             **{f"response_{k}": v for k, v in response_batch.items()},
-            **{k: v for k, v in other.items()}
+            **{k: torch.tensor(v) for k, v in others_batch.items()}
         )
 
         if "label" in batch:
@@ -87,5 +87,4 @@ class DataCollatorForResponseSelection:
         if "label_ids" in batch:
             batch["labels"] = batch["label_ids"]
             del batch["label_ids"]
-
         return batch

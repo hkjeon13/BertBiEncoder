@@ -190,11 +190,17 @@ def main():
 
     dataset = dataset.map(example_function, batched=True, remove_columns=dataset[data_args.train_split].column_names)
     collator = DataCollatorForResponseSelection(tokenizer=tokenizer)
+    def compute_metrics(p):
+        preds, labels = p
+        print([p.shape for p in preds])
+        print(labels.shape)
+        raise ValueError
 
     trainer = Trainer(
         model,
         tokenizer=tokenizer,
         data_collator=collator,
+        compute_metrics=compute_metrics,
         args=training_args,
         train_dataset=dataset[data_args.train_split],
         eval_dataset=dataset[data_args.eval_split],
