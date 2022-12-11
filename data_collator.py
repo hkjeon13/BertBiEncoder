@@ -3,6 +3,7 @@ from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
 from typing import Union, Optional, List, Dict, Any
 from itertools import product
+from collections import defaultdict
 import torch
 
 @dataclass
@@ -68,15 +69,10 @@ class DataCollatorForResponseSelection:
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=self.return_tensors,
         )
-        others_batch = {}
-        if others[0]:
-            others_batch.update(self.tokenizer.pad(
-                others,
-                padding=self.padding,
-                max_length=self.max_length,
-                pad_to_multiple_of=self.pad_to_multiple_of,
-                return_tensors=self.return_tensors,
-            ))
+        others_batch = defaultdict(list)
+        for other in others:
+            for k, v in other.items():
+                others_batch[k].append(v)
 
         batch = dict(
             {f"dialogue_{k}": v for k, v in dialogue_batch.items()},
