@@ -120,15 +120,12 @@ def get_dialogue_response(dialogues: List[List[str]], num_turns: int, stride: in
                 continue
             output_responses.append("".join([target_spks[-1], targets[-1]]).strip())
             output_dialogues.append([" ".join(sp_dials).strip() for sp_dials in zip(target_spks[:-1], targets[:-1])])
-    print(output_responses[:1])
-    print(output_dialogues[:1])
-    raise ValueError
     return output_dialogues, output_responses
 
 
 _HIT_AT_K = [1, 3, 5]
 
-def extract_speaker(data):
+def _extract_speaker(data):
     return [d['id'] for d in data]
 
 def main():
@@ -177,7 +174,7 @@ def main():
         speaker_ids = None
         if data_args.speaker_column_name in examples:
             speaker_ids = examples[data_args.speaker_column_name]
-            speaker_ids = [extract_speaker(sp) for sp in speaker_ids]
+            speaker_ids = [_extract_speaker(sp) for sp in speaker_ids]
             new_speaker_ids = []
             for sp_ids in speaker_ids:
                 unique_map = {s: (i+1) for i, s in enumerate(sorted(set(sp_ids)))}
