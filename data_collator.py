@@ -2,9 +2,19 @@ from dataclasses import dataclass
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
 from typing import Union, Optional, List, Dict, Any
-from itertools import product
 from collections import defaultdict
 import torch
+import numpy as np
+
+
+def _change_types(data, return_tensors="pt"):
+    if return_tensors == "pt":
+        if isinstance(data, (list, np.ndarray)):
+            return torch.tensor(data)
+    elif return_tensors == "np":
+        return np.array(data)
+    return data
+
 
 @dataclass
 class DataCollatorForResponseSelection:
@@ -36,6 +46,7 @@ class DataCollatorForResponseSelection:
     max_length: Optional[int] = None
     pad_to_multiple_of: Optional[int] = None
     return_tensors: str = "pt"
+    in_batch_negative_loss: bool = True
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
         dialogue_features, response_features, others = [], [], []
@@ -52,7 +63,12 @@ class DataCollatorForResponseSelection:
             response_features.append(response_feature)
             others.append(other)
 
-        others = [{"label" : 1. } for _ in range(len(dialogue_features))]
+        length = len(dialogue_features)
+
+        if self.in_batch_negative_loss:
+            others = [{"label" : [1. if j==i else 0 for j in range(length)]} for i in range(length)]
+        else:
+            others = [{"label" : 1. } for _ in range(length)]
 
         dialogue_batch = self.tokenizer.pad(
             dialogue_features,
@@ -77,7 +93,7 @@ class DataCollatorForResponseSelection:
         batch = dict(
             {f"dialogue_{k}": v for k, v in dialogue_batch.items()},
             **{f"response_{k}": v for k, v in response_batch.items()},
-            **{k: torch.tensor(v) for k, v in others_batch.items()}
+            **{k: _change_types(v, self.return_tensors) for k, v in others_batch.items()}
         )
 
         if "label" in batch:

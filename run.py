@@ -1,5 +1,6 @@
 import os.path
 
+import numpy as np
 import torch
 from data_collator import DataCollatorForResponseSelection
 from typing import Optional, List, Union
@@ -38,6 +39,9 @@ class ModelArguments:
         default=True, metadata={"help": ""}
     )
 
+    save_model_at_end: bool = field(
+        default=True, metadata={"help": ""}
+    )
 @dataclass
 class DataArguments:
     data_name_or_path: str = field(
@@ -109,6 +113,8 @@ def get_dialogue_response(dialogues: List[List[str]], num_turns: int, stride: in
             output_dialogues.append(targets[:-1])
     return output_dialogues, output_responses
 
+
+HIT_AT_K = [1, 3, 5]
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainParams))
@@ -191,10 +197,16 @@ def main():
     dataset = dataset.map(example_function, batched=True, remove_columns=dataset[data_args.train_split].column_names)
     collator = DataCollatorForResponseSelection(tokenizer=tokenizer)
     def compute_metrics(p):
-        preds, labels = p
-        print([p.shape for p in preds])
-        print(labels.shape)
-        raise ValueError
+        (preds, _, _), labels = p
+        if model_args.in_batch_negative_loss:
+            labels = np.argmax(labels, axis=-1)
+
+        result = {}
+        for h in HIT_AT_K:
+            candidates = np.argsort(preds, axis=-1)[:, :h]
+            result[f"hit@{h}"] = sum(l in c for l, c in zip(labels, candidates))/len(labels)
+
+        return result
 
     trainer = Trainer(
         model,
@@ -208,11 +220,16 @@ def main():
 
     if training_args.do_train:
         trainer.train()
-    elif training_args.do_eval:
-        trainer.evaluate()
 
-    save_path = os.path.join(training_args.output_dir, "final")
-    trainer.save_model(save_path)
+    elif training_args.do_eval:
+        result = trainer.evaluate()
+        print("\n***** Evaluation Result *****")
+        for k, v in result.items():
+            print(f"{k}: {v}")
+
+    if model_args.save_model_at_end:
+        save_path = os.path.join(training_args.output_dir, "final")
+        trainer.save_model(save_path)
 
 
 if __name__ == "__main__":
