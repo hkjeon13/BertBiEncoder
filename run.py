@@ -210,8 +210,7 @@ def main():
         tokenized_labels = tokenizer(
             examples['response'],
             truncation=True,
-            padding="max_length",
-            max_length=256
+            padding=True,
         )
 
         tokenized_inputs.update(
