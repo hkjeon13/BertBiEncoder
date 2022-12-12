@@ -1,5 +1,5 @@
+from utils import add_special_tokens_to_unused
 import os.path
-
 import numpy as np
 import torch
 from data_collator import DataCollatorForResponseSelection
@@ -42,6 +42,10 @@ class ModelArguments:
     save_model_at_end: bool = field(
         default=True, metadata={"help": ""}
     )
+
+    special_tokens:str = field(
+        default="[SPK1],[SPK2],[SPK3],[SPK4],[SPK5]", metadata={"help": ""}
+    )
 @dataclass
 class DataArguments:
     data_name_or_path: str = field(
@@ -54,6 +58,10 @@ class DataArguments:
 
     dialogue_column_name: str = field(
         default="dialogue", metadata={"help":""}
+    )
+
+    speaker_column_name: str = field(
+        default="speaker", metadata={"help": ""}
     )
 
     train_split: str = field(
@@ -98,26 +106,37 @@ def preprocess_text(text: Union[List[str], str]) -> str:
     return text
 
 
-def get_dialogue_response(dialogues: List[List[str]], num_turns: int, stride: int):
+def get_dialogue_response(dialogues: List[List[str]], num_turns: int, stride: int, speaker_ids: Optional[List[int]]=None, speaker_token_format="[SPK{}]"):
     output_dialogues, output_responses = [], []
-    for dialogue in dialogues:
+    for di, dialogue in enumerate(dialogues):
         ids = [(i, i+num_turns) for i in range(0, len(dialogue), stride)]
+        target_speakers = [speaker_token_format.format(s) for s in speaker_ids[di]] \
+            if speaker_ids is not None else ["" for _ in range(len(ids))]
+
         for s, e in ids:
             targets = dialogue[s:e]
+            target_spks = target_speakers[s:e]
             if len(targets) < num_turns:
                 continue
-            output_responses.append(targets[-1])
-            output_dialogues.append(targets[:-1])
+            output_responses.append("".join([target_spks[-1], targets[-1]]).strip())
+            output_dialogues.append([" ".join(sp_dials).strip() for sp_dials in zip(target_spks[:-1], targets[:-1])])
+    print(output_responses[:1])
+    print(output_dialogues[:1])
+    raise ValueError
     return output_dialogues, output_responses
 
 
 _HIT_AT_K = [1, 3, 5]
 
+def extract_speaker(data):
+    return [d['id'] for d in data]
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainParams))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    tokenizer = add_special_tokens_to_unused(tokenizer=tokenizer, special_tokens=model_args.special_tokens.split(","))
 
     if os.path.isdir(model_args.model_name_or_path):
         model = BiEncoderBertForResponseSelection.from_pretrained(
@@ -155,12 +174,24 @@ def main():
             for text in examples[data_args.dialogue_column_name]
         ]
 
+        speaker_ids = None
+        if data_args.speaker_column_name in examples:
+            speaker_ids = examples[data_args.speaker_column_name]
+            speaker_ids = [extract_speaker(sp) for sp in speaker_ids]
+            new_speaker_ids = []
+            for sp_ids in speaker_ids:
+                unique_map = {s: (i+1) for i, s in enumerate(sorted(set(sp_ids)))}
+                new_speaker_ids.append([unique_map[sp] for sp in sp_ids])
+            speaker_ids = new_speaker_ids
+
         dialogues, responses = [], []
         for i in range(data_args.min_num_turns, data_args.max_num_turns):
             new_dialogues, new_responses = get_dialogue_response(
                 dialogues=examples[data_args.dialogue_column_name],
                 num_turns=i,
                 stride=data_args.stride,
+                speaker_ids=speaker_ids,
+                speaker_token_format="[SPK{}]"
             )
             dialogues += new_dialogues
             responses += new_responses
