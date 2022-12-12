@@ -91,9 +91,6 @@ class TrainParams(TrainingArguments):
     )
 
 
-
-
-
 def preprocess_text(text: Union[List[str], str]) -> str:
     if isinstance(text, list):
         return [preprocess_text(t) for t in text]
@@ -114,7 +111,8 @@ def get_dialogue_response(dialogues: List[List[str]], num_turns: int, stride: in
     return output_dialogues, output_responses
 
 
-HIT_AT_K = [1, 3, 5]
+_HIT_AT_K = [1, 3, 5]
+
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainParams))
@@ -194,15 +192,21 @@ def main():
 
         return tokenized_inputs
 
-    dataset = dataset.map(example_function, batched=True, remove_columns=dataset[data_args.train_split].column_names)
+    dataset = dataset.map(
+        example_function,
+        batched=True,
+        remove_columns=dataset[data_args.train_split].column_names
+    )
+
     collator = DataCollatorForResponseSelection(tokenizer=tokenizer)
+
     def compute_metrics(p):
         (preds, _, _), labels = p
         if model_args.in_batch_negative_loss:
             labels = np.argmax(labels, axis=-1)
 
         result = {}
-        for h in HIT_AT_K:
+        for h in _HIT_AT_K:
             candidates = np.argsort(preds, axis=-1)[:, :h]
             result[f"hit@{h}"] = sum(l in c for l, c in zip(labels, candidates))/len(labels)
 
