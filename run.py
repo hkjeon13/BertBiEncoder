@@ -234,7 +234,7 @@ def main():
 
         result = {}
         for h in _HIT_AT_K:
-            candidates = np.argsort(preds, axis=-1)[:, :h]
+            candidates = np.flip(np.argsort(preds, axis=-1))[:, :h]
             result[f"hit@{h}"] = sum(l in c for l, c in zip(labels, candidates))/len(labels)
 
         return result
