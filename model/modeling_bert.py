@@ -4,7 +4,7 @@ import os
 import torch
 from torch import nn
 from transformers import BertModel, PreTrainedModel
-from torch.nn import BCELoss, CosineSimilarity, ReLU, CosineEmbeddingLoss
+from torch.nn import BCELoss, CosineSimilarity, ReLU, CosineEmbeddingLoss, CrossEntropyLoss
 from transformers.modeling_outputs import ModelOutput
 from transformers.models.bert.modeling_bert import (
     BertEncoder,
@@ -41,6 +41,7 @@ class BiEncoderBertForResponseSelection(BertPreTrainedModel):
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
+        print(config)
         self.dialogue_bert = BertModel(config)
         self.dialogue_dropout = nn.Dropout(classifier_dropout)
         self.dialogue_projection = nn.Linear(config.hidden_size, projection_size)
@@ -114,20 +115,13 @@ class BiEncoderBertForResponseSelection(BertPreTrainedModel):
         response_pooled_output = self.response_dropout(response_pooled_output)
         response_logits = self.response_projection(response_pooled_output)
 
-        if self.config.in_batch_negative_loss:
-            numerator = torch.matmul(dialogue_logits, response_logits.t())
-            denominator = (torch.sum(dialogue_logits**2)**0.5)*(torch.sum(response_logits**2)**0.5)
-            similarity = numerator / denominator
-        else:
-            cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
-            similarity = cosine_similarity(dialogue_logits, response_logits)
+        similarity = torch.matmul(dialogue_logits, response_logits.t())
 
         loss = None
         if labels is not None:
             if self.config.label_type == "binary":
-                m = ReLU()
-                loss_fct = BCELoss()
-                loss = loss_fct(m(similarity), labels)
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(similarity, labels)
             elif self.config.label_type == "polarity":
                 loss_fct = CosineEmbeddingLoss()
                 loss = loss_fct(dialogue_logits, response_logits, labels)
@@ -145,3 +139,7 @@ class BiEncoderBertForResponseSelection(BertPreTrainedModel):
             dialogue_embeddings=dialogue_logits,
             response_embeddings=response_logits,
         )
+
+
+if __name__ == "__main__":
+    model = BiEncoderBertForResponseSelection.from_pretrained("klue/bert-base", cache_dir=".cache")
